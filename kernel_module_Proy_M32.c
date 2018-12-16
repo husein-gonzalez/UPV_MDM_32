@@ -22,20 +22,42 @@ void * HPS_Timer2_virtual; // Timer2 base address
 void * HPS_Timer3_virtual; // Timer3 base address
 void * FPGA_Timer_Interval_Virtual; // Fpga Timer base address
 
+int servox_time=0,servoX_counter=0,grados=0;
+
  
  //rutina de interrupcion de timer2
  irq_handler_t irq_handler_HPS_timer2(int irq, void *dev_id, struct pt_regs *regs) //lo que se ejecuta cada vez que salta la interrupcion
  {
 	 
  int value, value2;
+ 
+ 
  //*LEDR_ptr = *LEDR_ptr ^ 0x1;
  
- //mover servoX
+ //el periodo del PWM es 50Hz->20ms. dividimos esos 20ms en 2000 partes para tener resolucion de 10us, lo que nos permite mover de 1º en 1º
+ 
+ if(servoX_counter>=2000)
+	 servoX_counter=0;
+ else
+	 servoX_counter++; 
  
  
- 
- 
- 
+	//prueba servo aspersor
+	if (servoX_counter < (grados+60))
+		
+		
+		*JP2_ptr = 0xA0; //pines de servos a 1 ( 5 y 7)
+	
+	else
+		
+		//jp2.5 =0
+		*JP2_ptr = 0x00; //pines de servos a 0 ( 5 y 7)
+
+	
+    if(grados>=180)
+		grados=0;
+    else
+		grados++;
   value = *(HPS_Timer2_ptr+3); //borrar flag
 
 
@@ -95,12 +117,18 @@ void * FPGA_Timer_Interval_Virtual; // Fpga Timer base address
  //FPGA_Timer_Interval_Virtual = ioremap_nocache (FPGA_INTERVAL_TIMER_BASE, FPGA_INTERVAL_TIMER_SPAN);
  
  
+ //configura GPIOS JP2
+ 
+ *(JP2_ptr + 1) = 0xA0;   // 5 y 7 son salidas. pin 5 = servo x, pin7 = servo y
+ 
+ 
+ 
  //configuracion timer2. reloj de 25MHz
- HPS_Timer2_ptr = HPS_Timer2_virtual; //salta cada microsegundo
+ HPS_Timer2_ptr = HPS_Timer2_virtual; //salta cada 10 microsegundos (1800us == 180º)
  
    *(HPS_Timer2_ptr + 2) = 0x00FE;  //deshabilita timer
    *(HPS_Timer2_ptr + 3) = 0X00FE;  // borra flag
-   *HPS_Timer2_ptr = 25;		//Load Value
+   *HPS_Timer2_ptr = 250;		//Load Value
    *(HPS_Timer2_ptr + 2) = 0x0003;   //Auto Reload & Enable
    
 //configuracion timer3. reloj de 25MHz
@@ -138,8 +166,13 @@ HPS_Timer3_ptr = HPS_Timer3_virtual; //salta cada dos segundos
  value3 = request_irq (FPGA_INTERVAL_TIMER_IRQ, (irq_handler_t) irq_handler_FPGA_timer, IRQF_SHARED,
  "FPGA_Timer_irq_handler", (void *) (irq_handler_FPGA_timer));
  
+
+ 
+ 
  return value;
  }
+ 
+ 
  
  
  static void __exit cleanup_handler(void)
