@@ -33,19 +33,31 @@ void * HPS_Timer3_virtual; // Timer3 base address
  irq_handler_t irq_handler_HPS_timer2(int irq, void *dev_id, struct pt_regs *regs) //lo que se ejecuta cada vez que salta la interrupcion
  {
 	 
- int value;
- //*LEDR_ptr = *LEDR_ptr ^ 0x1;
-  *LEDR_ptr = *LEDR_ptr + 1;
+ int value, value2;
+ *LEDR_ptr = *LEDR_ptr ^ 0x1;
+//  *LEDR_ptr = *LEDR_ptr + 1;
   value = *(HPS_Timer2_ptr+3); //borrar flag
+
+
+ return (irq_handler_t) IRQ_HANDLED;
+ }
+ 
+  irq_handler_t irq_handler_HPS_timer3(int irq, void *dev_id, struct pt_regs *regs) //lo que se ejecuta cada vez que salta la interrupcion
+ {
+	 
+ int value;
+ *LEDR_ptr = *LEDR_ptr ^ 0x2;
+ // *LEDR_ptr = *LEDR_ptr + 1;
+  value = *(HPS_Timer3_ptr+3); //borrar flag
 
  return (irq_handler_t) IRQ_HANDLED;
  }
  
  
  
- static int __init initialize_HPS_timer2_handler(void)	
+ static int __init initialize_handler(void)	
  {
- int value;
+ int value, value2;
  // generate a virtual address for the FPGA lightweight bridge
  LW_virtual = ioremap_nocache (LW_BRIDGE_BASE, LW_BRIDGE_SPAN);
 
@@ -56,12 +68,20 @@ void * HPS_Timer3_virtual; // Timer3 base address
  HPS_Timer2_virtual = ioremap_nocache (HPS_TIMER2_BASE, HPS_TIMER2_SPAN); 
  HPS_Timer3_virtual = ioremap_nocache (HPS_TIMER3_BASE, HPS_TIMER3_SPAN);
  
- HPS_Timer2_ptr = HPS_Timer2_virtual;
+ HPS_Timer2_ptr = HPS_Timer2_virtual; //salta cada segundo
  
    *(HPS_Timer2_ptr + 2) = 0x00FE;  
    *(HPS_Timer2_ptr + 3) = 0X00FE;   
    *HPS_Timer2_ptr = 25000000;
    *(HPS_Timer2_ptr + 2) = 0x0003;   
+   
+   
+HPS_Timer3_ptr = HPS_Timer3_virtual; //salta cada dos segundos
+ 
+   *(HPS_Timer3_ptr + 2) = 0x00FE;  
+   *(HPS_Timer3_ptr + 3) = 0X00FE;   
+   *HPS_Timer3_ptr = 50000000;
+   *(HPS_Timer3_ptr + 2) = 0x0003;
 
 /*  KEY_ptr = LW_virtual + KEY_BASE; // virtual address for KEY port
  *(KEY_ptr + 3) = 0xF; // Clear the Edgecapture register
@@ -70,14 +90,20 @@ void * HPS_Timer3_virtual; // Timer3 base address
  // Register the interrupt handler.
  value = request_irq (HPS_TIMER2_IRQ, (irq_handler_t) irq_handler_HPS_timer2, IRQF_SHARED,
  "HPS_Timer2_irq_handler", (void *) (irq_handler_HPS_timer2));
+ 
+  // Register the interrupt handler.
+ value2 = request_irq (HPS_TIMER3_IRQ, (irq_handler_t) irq_handler_HPS_timer3, IRQF_SHARED,
+ "HPS_Timer3_irq_handler", (void *) (irq_handler_HPS_timer3));
+ 
  return value;
  }
  
  
- static void __exit cleanup_Timer2_handler(void)
+ static void __exit cleanup_handler(void)
  {
  *LEDR_ptr = 0; // Turn off LEDs and de-register irq handler
  free_irq (HPS_TIMER2_IRQ, (void*) irq_handler_HPS_timer2);
+ free_irq (HPS_TIMER3_IRQ, (void*) irq_handler_HPS_timer3);
  }
- module_init(initialize_HPS_timer2_handler);
- module_exit(cleanup_Timer2_handler);
+ module_init(initialize_handler);
+ module_exit(cleanup_handler);
