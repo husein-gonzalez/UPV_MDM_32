@@ -37,6 +37,7 @@ int X_miliG=0, Y_miliG=0;
 int contador_total_acel=0;
 int contador_filtro_acel=0;
 int filtro_acel_temp_X=0, filtro_acel_temp_Y=0;
+int acel_max=0, acel_min=10000;
 
 
  
@@ -120,6 +121,7 @@ else
  {
 	 
 	 int value, acel_x_bit, acel_y_bit;
+	 int temp;
 	 //*LEDR_ptr = *LEDR_ptr ^ 0x4;
 	 
 	 value= *JP2_ptr;  // leer el valor de los pines
@@ -145,9 +147,32 @@ else
 		 
 		// contador_filtro_acel++;
 		// filtro_acel_temp_X=filtro_acel_temp_X+contador_acel_x;
-		// grados_X = (contador_acel_x/50)+60;
-		grados_X = (contador_acel_x/20)-90;
-		 printk(" acelx: %d    acely: %d \n\r", contador_acel_x,grados_X);
+
+		//autocalibrar acelerometro
+		//medir maximo y minimo
+		//los grados se le dan al servo en decenas de microsegundos: 60 - 2400  == 0º - 180º
+		//grados del servo = (tiempo en alta del acelerometro)- timepo minimo en alta / (rango acelerometro/rango servo)
+		
+		
+		if(contador_acel_x>acel_max)  //ver el valor maximo del acelerometro
+			acel_max=contador_acel_x;
+		
+		if(contador_acel_x<acel_min)	//ver el valor minimo del acelerometro
+			acel_min=contador_acel_x;
+
+			
+			
+		contador_acel_x =  contador_acel_x - acel_min; //quitar minimo
+		temp = (acel_max - acel_min)/180;		// servo va de 60 a 240 =180
+		
+		grados_X = (contador_acel_x / temp ) + 60;	// convertir en grados
+		
+		
+		
+			
+			
+//		grados_X = (contador_acel_x/20)-90;
+		 printk(" acelx: %d    acely: %d \n\r", acel_min,acel_max);
 		 if(grados_X > 240)
 			 grados_X=240;
 		 if(grados_X<60)
