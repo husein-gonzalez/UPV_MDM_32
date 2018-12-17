@@ -32,12 +32,13 @@ void * HPS_Timer3_virtual; // Timer3 base address
 void * FPGA_Timer_Interval_Virtual; // Fpga Timer base address
 
 int servox_time=0,servoX_counter=0,grados_X=0, grados_Y=0;
+int servoY_counter=0;
 int time_acel_x=0, time_acel_y=0, contador_acel_x=0, contador_acel_y=0, acel_y_F=0, acel_x_F=0, acel_y_Edge=0, acel_x_Edge=0;
-int X_miliG=0, Y_miliG=0;
 int contador_total_acel=0;
 int contador_filtro_acel=0;
 int filtro_acel_temp_X=0, filtro_acel_temp_Y=0;
-int acel_max=0, acel_min=10000;
+int acel_max_x=0, acel_min_x=10000;
+int acel_max_y=0, acel_min_y=10000;
 
 
  
@@ -46,9 +47,6 @@ int acel_max=0, acel_min=10000;
  {
 	 
  int value, value2;
- 
- 
- //*LEDR_ptr = *LEDR_ptr ^ 0x1;
  
  //el periodo del PWM es 50Hz->20ms. dividimos esos 20ms en 2000 partes para tener resolucion de 10us, lo que nos permite mover de 1º en 1º
  
@@ -60,55 +58,50 @@ int acel_max=0, acel_min=10000;
  // 0º= 600us, 90º=1500us     180 º = 2400us
  
  
-if (servoX_counter < grados_X)
-	
-	
-	*JP2_ptr = 0xA0; //pines de servos a 1 ( 5 y 7)
+ // el aceleromtero nos pasa los grados en datos de 60 a 240
+ 
+if (servoX_counter < grados_X)		
+		
+	*JP2_ptr = *JP2_ptr | 0x20; //pin 5 a 1
 
 else
 	
-	//jp2.5 =0
-	*JP2_ptr = 0x00; //pines de servos a 0 ( 5 y 7)
+		*JP2_ptr = *JP2_ptr & 0xDF;; //pin 5 a 0
 
-
-
- 
- 
- 
-/* 	//prueba servo aspersor
-	if (servoX_counter < (grados+60))
-		
-		
-		*JP2_ptr = 0xA0; //pines de servos a 1 ( 5 y 7)
-	
-	else
-		
-		//jp2.5 =0
-		*JP2_ptr = 0x00; //pines de servos a 0 ( 5 y 7)
-
-	
-    if(grados>=180)
-		grados=0;
-    else
-		grados++; */
   value = *(HPS_Timer2_ptr+3); //borrar flag
-
 
  return (irq_handler_t) IRQ_HANDLED;
  }
  
  
-  //rutina de interrupcion de timer3
+  //rutina de interrupcion de timer3 (control del servo y)
   irq_handler_t irq_handler_HPS_timer3(int irq, void *dev_id, struct pt_regs *regs) //lo que se ejecuta cada vez que salta la interrupcion
  {
 	 
  int value;
  *LEDR_ptr = *LEDR_ptr ^ 0x2;
 
- //mover servo
+ //mover servo y
+  
+ //el periodo del PWM es 50Hz->20ms. dividimos esos 20ms en 2000 partes para tener resolucion de 10us, lo que nos permite mover de 1º en 1º
+ 
+ if(servoY_counter>=2000)
+	 servoY_counter=0;
+ else
+	 servoY_counter++; 
+ 
+ // 0º= 600us, 90º=1500us     180 º = 2400us
  
  
+ // el aceleromtero nos pasa los grados en datos de 60 a 240
  
+if (servoY_counter < grados_Y)		
+		
+	*JP2_ptr = *JP2_ptr | 0x80; //pin 7 a 1
+
+else
+	
+		*JP2_ptr = *JP2_ptr & 0x7F;; //pin 7 a 0 
  
   value = *(HPS_Timer3_ptr+3); //borrar flag
 
@@ -122,62 +115,62 @@ else
 	 
 	 int value, acel_x_bit, acel_y_bit;
 	 int temp;
-	 //*LEDR_ptr = *LEDR_ptr ^ 0x4;
 	 
 	 value= *JP2_ptr;  // leer el valor de los pines
 	 
-	 //aislar los bits 17 y 19
-	 
+	 //aislar los bits 17 y 19	 
 	 acel_x_bit = value & 0x20000 ; //bit17 ->x
 	 acel_y_bit = value & 0x80000 ; //bit19 ->y
 	 
-	// contador_total_acel++;
-	 
-	 
-	
-	 
-	 
 	 if(contador_total_acel>=10000)	//ha finalizado periodo de 10ms
 	 {
-		 
-		//printk(" acelx: %d    acely: %d \n\r", contador_acel_x,contador_acel_y);
-						
-		 
-	//	 grados = contador_acel_x / 56;
-		 
-		// contador_filtro_acel++;
-		// filtro_acel_temp_X=filtro_acel_temp_X+contador_acel_x;
-
 		//autocalibrar acelerometro
 		//medir maximo y minimo
 		//los grados se le dan al servo en decenas de microsegundos: 60 - 2400  == 0º - 180º
 		//grados del servo = (tiempo en alta del acelerometro)- timepo minimo en alta / (rango acelerometro/rango servo)
 		
+		// X limits
+		if(contador_acel_x>acel_max_x)  // valor maximo del acelerometro
+			acel_max_x=contador_acel_x;
 		
-		if(contador_acel_x>acel_max)  //ver el valor maximo del acelerometro
-			acel_max=contador_acel_x;
+		if(contador_acel_x<acel_min_x)	// valor minimo del acelerometro
+			acel_min_x=contador_acel_x;	
+		// Y limits
+		if(contador_acel_y>acel_max_y)  // valor maximo del acelerometro
+			acel_max_y=contador_acel_y;
 		
-		if(contador_acel_x<acel_min)	//ver el valor minimo del acelerometro
-			acel_min=contador_acel_x;
-
-			
-			
-		contador_acel_x =  contador_acel_x - acel_min; //quitar minimo
-		temp = (acel_max - acel_min)/180;		// servo va de 60 a 240 =180
+		if(contador_acel_y<acel_min_y)	// valor minimo del acelerometro
+			acel_min_y=contador_acel_y;			
 		
-		grados_X = (contador_acel_x / temp ) + 60;	// convertir en grados
-		
-		
-		
-			
-			
-//		grados_X = (contador_acel_x/20)-90;
-		 printk(" acelx: %d    acely: %d \n\r", acel_min,acel_max);
-		 if(grados_X > 240)
-			 grados_X=240;
-		 if(grados_X<60)
-			 grados_X=60;
+		//transformar de microsegundos a grados X
+		contador_acel_x =  contador_acel_x - acel_min_x; //quitar minimo
+		temp = (acel_max_x - acel_min_x)/180;		 //escalar		
+		temp = (contador_acel_x / temp ) + 60;	// convertir en grados, de 60 a 240 =180º
+				
+		printk(" minx: %d    maxx: %d, gradosx %d \n\r", acel_min_x,acel_max_x,grados_X );
 		 
+		 //evitar sobrepasar limites
+		 if(temp > 240)
+			 grados_X=240;
+		 else if(temp<60)
+			 grados_X=60;
+		 else
+			 grados_X = temp;
+		 
+		//transformar de microsegundos a grados Y
+		contador_acel_y =  contador_acel_y - acel_min_y; //quitar minimo
+		temp = (acel_max_y - acel_min_y)/180;		 //escalar		
+		temp = (contador_acel_y / temp ) + 60;	// convertir en grados, de 60 a 240 =180º	 
+		 
+		 //evitar sobrepasar limites
+		 if(temp > 240)
+			 grados_Y=240;
+		 else if(temp<60)
+			 grados_Y=60;
+		 else
+			 grados_Y = temp;
+		 
+		 //reiniciar variables
 		contador_total_acel=0;
 		contador_acel_x=0;
 		contador_acel_y=0;		
@@ -193,19 +186,7 @@ else
 		contador_total_acel++;
 	
 	}
-	  
-/* //hacer media de los valores y pasarlo a grados
-	  if(contador_filtro_acel >=10)
-	  {
-		  filtro_acel_temp_X=filtro_acel_temp_X/contador_filtro_acel; //media
-	//	  grados_X = filtro_acel_temp_X/56;		//10000/18=56
-		grados_X = (filtro_acel_temp_X/5)+600;
-		  
-		  contador_filtro_acel=0;
-		  filtro_acel_temp_X=0;
-	  } */
-		 
-  
+	    
 	 *FPGA_Timer_Interval_ptr = 0x10; //borrar flag, escribir cualquier valor en registro status
 	 return (irq_handler_t) IRQ_HANDLED;
  }
@@ -240,7 +221,7 @@ else
  
    *(HPS_Timer2_ptr + 2) = 0x00FE;  //deshabilita timer
    *(HPS_Timer2_ptr + 3) = 0X00FE;  // borra flag
-   *HPS_Timer2_ptr = 250;		//Load Value
+   *HPS_Timer2_ptr = 250;		//Load Value, salta cada 10us
    *(HPS_Timer2_ptr + 2) = 0x0003;   //Auto Reload & Enable
    
 //configuracion timer3. reloj de 25MHz
@@ -248,7 +229,7 @@ HPS_Timer3_ptr = HPS_Timer3_virtual; //salta cada dos segundos
  
    *(HPS_Timer3_ptr + 2) = 0x00FE;    //deshabilita timer
    *(HPS_Timer3_ptr + 3) = 0X00FE;    // borra flag
-   *HPS_Timer3_ptr = 50000000;		//Load Value
+   *HPS_Timer3_ptr = 250;		//Load Value, salta cada 10us
    *(HPS_Timer3_ptr + 2) = 0x0003;  //Auto Reload & Enable
 
    
@@ -260,7 +241,7 @@ HPS_Timer3_ptr = HPS_Timer3_virtual; //salta cada dos segundos
  
    *(FPGA_Timer_Interval_ptr + 1) = *(FPGA_Timer_Interval_ptr + 1) | 0x8; //parar contador
    *(FPGA_Timer_Interval_ptr + 1) = *(FPGA_Timer_Interval_ptr + 1) | 0x2;  //set auto reload (CONT)
-   *(FPGA_Timer_Interval_ptr + 2) = 0x0064;   //valor inicial , low
+   *(FPGA_Timer_Interval_ptr + 2) = 0x0064;   //valor inicial , low , salta cada microsegundo
    *(FPGA_Timer_Interval_ptr + 3) = 0x0000;	  //valor inicial , high
    *(FPGA_Timer_Interval_ptr + 1) = *(FPGA_Timer_Interval_ptr + 1) | 0x1;  //habilitar interrupcion
    *(FPGA_Timer_Interval_ptr + 1) = *(FPGA_Timer_Interval_ptr + 1) | 0x4;  //arrancar timer;
